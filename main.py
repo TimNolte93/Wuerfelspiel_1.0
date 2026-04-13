@@ -30,15 +30,33 @@ def validiere_name(index):
             return name
         print("Ungültiger Name! Nur Buchstaben erlaubt.")
 
-def zeige_rangliste(spieler_daten):
-    print("\n--- AKTUELLE RANGLISTE ---")    
+def zeige_rangliste(spieler_daten, final=False):
+    if final:
+        print("\n==============================")
+        print("      FINALE SIEGEREHRUNG     ")
+        print("==============================")
+    else:
+        print("\n--- AKTUELLE RANGLISTE ---")        
+
     rangliste = []
     for name, daten in spieler_daten.items():
         punkte = sum(int(zahl) * anzahl for zahl, anzahl in daten["statistik"].items())
-        rangliste.append((name, punkte))    
-    rangliste.sort(key=lambda x: x[1], reverse=True)
-    for platz, (name, punkte) in enumerate(rangliste, 1):
-        print(f"Platz {platz}: {name} mit {punkte} Punkten")
+        rangliste.append({"name": name, "punkte": punkte})        
+
+    rangliste.sort(key=lambda x: x["punkte"], reverse=True)
+    
+    aktueller_rang = 1
+    for i in range(len(rangliste)):
+        if i > 0 and rangliste[i]["punkte"] < rangliste[i-1]["punkte"]:
+            aktueller_rang = i + 1
+        
+        ausgabe = f"Platz {aktueller_rang}: {rangliste[i]['name']} ({rangliste[i]['punkte']} Punkte)"
+        
+        if final and aktueller_rang == 1:
+            print(f"{ausgabe}")
+        else:
+            print(ausgabe)
+            
     print("----------------------------")
 
 def hole_spielstaende():
@@ -58,7 +76,7 @@ def lade_spielstand():
         runden_limit = validiere_runden()
         spieler_namen = [validiere_name(i) for i in range(1, anzahl + 1)]
         spieler_daten = {name: {"statistik": {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0}, "gesamt": 0} for name in spieler_namen}
-        return spieler_daten, runden_limit, 1, 0 # spieler, limit, runde, start_spieler_index
+        return spieler_daten, runden_limit, 1, 0
     
     try:
         index = int(wahl) - 1
@@ -74,26 +92,21 @@ def speichere_spielstand(spieler_daten, limit, runde, spieler_index, automatisch
     zeit = datetime.now().strftime("%Y%m%d_%H%M%S")
     prefix = "auto_save" if automatisch else "save"
     dateiname = f"{prefix}_{zeit}{EXTENSION}"
-    
     speicher_objekt = {
-        "spieler": spieler_daten,
-        "runden_limit": limit,
-        "aktuelle_runde": runde,
-        "naechster_spieler_index": spieler_index
+        "spieler": spieler_daten, "runden_limit": limit,
+        "aktuelle_runde": runde, "naechster_spieler_index": spieler_index
     }
-    
     with open(dateiname, "w", encoding="utf-8") as f:
         json.dump(speicher_objekt, f, indent=4)
     
     if automatisch:
-        print(f"\n[System] Runde abgeschlossen. Automatischer Zwischenstand gespeichert: {dateiname}")
+        print(f"\n[System] Automatisch gespeichert: {dateiname}")
     else:
-        print(f"Manuell gespeichert als: {dateiname}")
+        print(f"Manuell gespeichert: {dateiname}")
 
 def wuerfel_spiel():
     spieler_daten, runden_limit, start_runde, start_spieler_idx = lade_spielstand()
     if not spieler_daten: return
-
     spieler_namen = list(spieler_daten.keys())
 
     for runde in range(start_runde, runden_limit + 1):
@@ -103,28 +116,25 @@ def wuerfel_spiel():
         print(f"\n============================")
         print(f"   SPIELRUNDE {runde} von {runden_limit}")
         print(f"============================")
+        
         for i in range(start_spieler_idx, len(spieler_namen)):
             name = spieler_namen[i]
             print(f"\n>>> {name} ist an der Reihe!")
-            
-            aktion = input(f"    [ENTER zum Würfeln | 's' zum Speichern & Beenden]: ").lower()
+            aktion = input(f"    [ENTER zum Würfeln | 's' zum Speichern]: ").lower()
             
             if aktion == 's':
                 speichere_spielstand(spieler_daten, runden_limit, runde, i)
                 return
 
             ergebnis = str(random.randint(1, 6))
-            daten = spieler_daten[name]
-            daten["statistik"][ergebnis] += 1
-            daten["gesamt"] += 1
+            spieler_daten[name]["statistik"][ergebnis] += 1
+            spieler_daten[name]["gesamt"] += 1
             print(f"   Ergebnis: {ergebnis}")
 
         start_spieler_idx = 0
-        
-        speichere_spielstand(spieler_daten, runden_limit, runde + 1, 0, automatisch=True)
-
-    print("\nDAS SPIEL IST BEENDET!")
-    zeige_rangliste(spieler_daten)
+        if runde < runden_limit:
+            speichere_spielstand(spieler_daten, runden_limit, runde + 1, 0, automatisch=True)
+    zeige_rangliste(spieler_daten, final=True)
     speichere_spielstand(spieler_daten, runden_limit, runden_limit, 0)
 
 if __name__ == "__main__":
