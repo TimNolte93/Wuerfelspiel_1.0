@@ -30,6 +30,21 @@ def validiere_name(index):
             return name
         print("Ungültiger Name! Nur Buchstaben erlaubt.")
 
+def zeige_rangliste(spieler_daten):
+    """Berechnet die Gesamtpunkte und zeigt ein sortiertes Leaderboard an."""
+    print("\n---AKTUELLE RANGLISTE ---")    
+
+    rangliste = []
+    for name, daten in spieler_daten.items():
+        punkte = sum(int(zahl) * anzahl for zahl, anzahl in daten["statistik"].items())
+        rangliste.append((name, punkte))    
+
+    rangliste.sort(key=lambda x: x[1], reverse=True)
+    
+    for platz, (name, punkte) in enumerate(rangliste, 1):
+        print(f"Platz {platz}: {name} mit {punkte} Punkten")
+    print("----------------------------")
+
 def hole_spielstaende():
     return sorted([f for f in os.listdir('.') if f.endswith(EXTENSION) and f.startswith('save_')], reverse=True)
 
@@ -44,65 +59,60 @@ def lade_spielstand():
     
     if not wahl or wahl == '0':
         anzahl = validiere_anzahl()
-        runden_limit = validiere_runden() # Neu: Rundenlimit beim Start festlegen
+        runden_limit = validiere_runden()
         spieler = {}
         for i in range(1, anzahl + 1):
             name = validiere_name(i)
-            spieler[name] = {"statistik": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}, "gesamt": 0}
-        return spieler, runden_limit, 1 # Spieler, Limit, Startrunde
+            spieler[name] = {"statistik": {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0}, "gesamt": 0}
+        return spieler, runden_limit, 1
     
     try:
         index = int(wahl) - 1
         with open(dateien[index], "r", encoding="utf-8") as f:
             daten = json.load(f)
             print(f"Spielstand {dateien[index]} geladen!")
-            limit = daten.get("runden_limit", 10)
-            aktuelle_runde = daten.get("aktuelle_runde", 1)
-            return daten["spieler"], limit, aktuelle_runde
-    except Exception as e:
-        print(f"Fehler beim Laden: {e}")
-        return {validiere_name(1): {"statistik": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}, "gesamt": 0}}, 5, 1
+            return daten["spieler"], daten["runden_limit"], daten["aktuelle_runde"]
+    except:
+        print("Fehler beim Laden. Starte neu.")
+        return {}, 5, 1
 
 def speichere_spielstand(spieler_daten, limit, runde):
     zeit = datetime.now().strftime("%Y%m%d_%H%M%S")
     dateiname = f"save_{zeit}{EXTENSION}"
-    speicher_objekt = {
-        "spieler": spieler_daten,
-        "runden_limit": limit,
-        "aktuelle_runde": runde
-    }
+    speicher_objekt = {"spieler": spieler_daten, "runden_limit": limit, "aktuelle_runde": runde}
     with open(dateiname, "w", encoding="utf-8") as f:
         json.dump(speicher_objekt, f, indent=4)
-    print(f"Fortschritt gespeichert als: {dateiname}")
+    print(f"Gespeichert als: {dateiname}")
 
 def wuerfel_spiel():
     spieler_daten, runden_limit, start_runde = lade_spielstand()
-    print(f"\n---Das Spiel beginnt! Ziel: {runden_limit} Runden ---")
+    if not spieler_daten: return
+
     for runde in range(start_runde, runden_limit + 1):
+        if runde > 1:
+            zeige_rangliste(spieler_daten)
+
         print(f"\n============================")
         print(f"   SPIELRUNDE {runde} von {runden_limit}")
         print(f"============================")
 
         for name, daten in spieler_daten.items():
             print(f"\n>>> {name} ist an der Reihe!")
-            input(f"    [Drücke ENTER zum Würfeln...]") 
+            input(f"    [ENTER zum Würfeln]") 
             
-            ergebnis = random.randint(1, 6)
-
-            stats = {int(k): v for k, v in daten["statistik"].items()}
-            stats[ergebnis] += 1
-            daten["statistik"] = stats
+            ergebnis = str(random.randint(1, 6))
+            daten["statistik"][ergebnis] += 1
             daten["gesamt"] += 1
-            
-            print(f"    Ergebnis: {ergebnis}")
+            print(f"   Ergebnis: {ergebnis}")
 
         if runde < runden_limit:
-            entscheidung = input("\nNächste Runde starten? (j) oder Spiel pausieren & speichern? (s): ").lower()
+            entscheidung = input("\nWeiter (j) oder Speichern & Beenden (s)? ").lower()
             if entscheidung == 's':
                 speichere_spielstand(spieler_daten, runden_limit, runde + 1)
                 return
 
-    print("\n DAS SPIEL IST BEENDET!")
+    print("\nDAS SPIEL IST BEENDET!")
+    zeige_rangliste(spieler_daten)
     speichere_spielstand(spieler_daten, runden_limit, runden_limit)
 
 if __name__ == "__main__":
